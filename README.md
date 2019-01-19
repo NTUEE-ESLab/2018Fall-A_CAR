@@ -115,7 +115,18 @@ remote/arduino/sensor_2/sensor_2.ino
 砲台上同時裝備了Pi camera以及雷射模組，因此在tracing過程中，系統會以將目標移動到螢幕正中央為目標，不斷調整砲台的方位以及仰角，最後開火，擊潰
 外星人！
 ## Deployment
-
+首先完成線路的連接，並且將負責local藍芽傳輸、車輪控制以及超音波偵測的arduino開發版寫入相對應的程式，接著在RPi上值型以下指令：
+```
+cd remote/A_CAR
+bash CARS.sh
+```
+遙控車即會開機，並且開始超音波攻擊源偵測以及錄影功能，以及與本機端的藍芽模組進行連接。  
+接著在本機輸入以下指令：
+```
+cd local/GUI
+python3 command_center.py
+```
+本機端會開啟影像串流，並且開始傳送遙控信號，進行外星探險活動！
 ## Achievements
 ## Reference
 ## Authors
