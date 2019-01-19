@@ -35,13 +35,13 @@ NewPing(already in the folder)
 由攝影鏡頭辨識攻擊源加以反擊。  
 我們以Raspberry Pi作為遙控車主機，在車體上加裝辨識裝置與反擊裝置，以藍芽模擬地球傳出的訊號來控制，超音波訊號模擬攻擊源的攻擊訊號，Pi
 camera作為鏡頭，特定圖像來代表攻擊源，並自行開發出辨識演算法，最後以紅光雷射作為車上的反擊裝置。
-## characteristic
-### multi-thread
+## Characteristics
+### Multi-thread
 本專案中大量使用multi-thread的技巧，來避免不相干的任務互相干擾(如影片回傳與超音波偵測、甚至是雷射光攻擊)
 ### Strict hierarchy
 本專案使用arduino開發板來處理大量重複性高的簡單任務，例如馬達的操控，以及超音波訊號接收等等。在arduino上做的簡單初步處理，既可以分擔RPi
 的運算壓力，也解決了RPi的digital pin不足的情況(Rpi的digital pin共有17個，但本專案會用到超過60個digital i/o pin腳。
-### Various transmission
+### Various transmission skills
 本專案根據不同的傳輸資料類型，來選擇最適合的傳輸方式。遙控訊號部份我們選擇使用藍芽，避免網路不佳時無法進行簡單的遙控功能。大流量的影片回
 傳，則使用效率最高的網路傳輸。Rpi跟arduino之間的聯絡方式也包刮了serial connection、GPIO訊號，由於車身的旋轉功能，使得
 大部份部份的serial線路無法使用，因此我們使用了後兩者來客服本問題。在處理大量的數位訊號時，為了避免Rpi的GPIO pin腳不夠，我們甚至採取了將
@@ -54,7 +54,7 @@ camera作為鏡頭，特定圖像來代表攻擊源，並自行開發出辨識�
 ![target](https://user-images.githubusercontent.com/31982568/51428977-b74ad780-1c44-11e9-9fdc-b68f52c6fbbf.png)
 ![recognition](https://user-images.githubusercontent.com/31982568/51429061-ce3df980-1c45-11e9-8fca-7f4a464fda67.jpg)
 以下為各部分的實作解說。
-### remote control signal
+### Remote control signal
 使用藍芽進行傳輸，在local端以電腦連接裝載HC-05藍芽模組的arduino，並且上傳以下程式。
 ```
 local/arduino/remote_control/remote_control.ino
@@ -90,7 +90,7 @@ local/GUI/command_center.py
 remote/arduino/wheel_controller/wheel_controller.ino
 remote/A_CAR/PWM_io.py
 ```
-### attacking detection
+### Attacking detection
 以超音波發送接收模組hcsr-04做為模擬攻擊/接收源，每個超音波元件接收的角度大約為60度的扇形區域，經過測試之後，我們將整個圓切為八等分，每個等分上
 有兩個仰角不同(0度以及45度)的超音波發射接收器，再加上天頂的最後一個，車身上一共有17個超音波接收器。由於接收器數量過多，因此總共需要兩個arduino
 才能提供足夠的腳位，兩者分別接收超音波接收器的訊號，並經由serial port傳送一個17bit的訊號給rpi，程式實現如下：
@@ -98,11 +98,24 @@ remote/A_CAR/PWM_io.py
 remote/arduino/sensor_1/sensor_1.ino
 remote/arduino/sensor_2/sensor_2.ino
 ```
-### target recognition
-
-(你的)
-反擊裝置：與影像辨識系統的pi camera裝在一起，影像辨識系統確認攻擊源後由rpi啟動雷射模組進行攻擊
+### Target recognition
+由於我們做的並不是一個普遍的辨識功能，而是有特殊的目標，且在我們的設定中，辨識系統的效率必須非常高，才能在RPi達成即時的辨識，若有稍微嚴重的延遲
+，步進馬達很有可能會轉過頭，或是來回找不到目標精準的位置，因此我們決定自主設計出一套辨識系統，可讓延遲控制在0.1秒以內，比坊間的臉部辨識等等動輒
+3~5秒的延遲有效率許多。
+#### Searching
+在辨識的第一階段中，我們從convolutional neural network得到靈感，精心設計了許多不同大小的filter，滑過一個影片的frame，並且根據結果回傳匹配值
+。針對不同的filter大小，我們對於圖片的down sampling以及匹配值的臨界值都有精心的設計，且這些設計皆可以隨著辨識環境來調整。當然，我們也在事先對
+影像做了標準化，因此大幅提升辨識系統的除錯能力，甚至在半夜視環境(白天關燈的實驗室)中，也能正確無誤的辨識。
+#### Tracing
+經過第一階段找出可能的候選清單後，遙控車的炮台就會開始轉動，而架在砲口旁的相機也會隨之轉動。轉動造成的干擾恰好可以對辨識的品質進行篩選，在searching
+階段中的fake truth，經過些微的擾動以後，會與真正的目標產生明顯差距，因此經過幾個循環之後，候選清單中就只剩下真正的目標。接著我們的辨識系統會把
+目標鎖定在該影像周邊的一小塊區域中，更進一步提升辨識的效率，以換取更多的辨識次數，來即時調整辨識參數，避免由於砲台轉動造成的影像變化，使得辨識的
+效果下降。
+### Counter system
+砲台上同時裝備了Pi camera以及雷射模組，因此在tracing過程中，系統會以將目標移動到螢幕正中央為目標，不斷調整砲台的方位以及仰角，最後開火，擊潰
+外星人！
 ## Deployment
+
 ## Achievements
 ## Reference
 ## Authors
