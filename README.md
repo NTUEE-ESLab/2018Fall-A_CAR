@@ -46,7 +46,7 @@ camera作為鏡頭，特定圖像來代表攻擊源，並自行開發出辨識�
 傳，則使用效率最高的網路傳輸。Rpi跟arduino之間的聯絡方式也包刮了serial connection、GPIO訊號，由於車身的旋轉功能，使得
 大部份部份的serial線路無法使用，因此我們使用了後兩者來客服本問題。在處理大量的數位訊號時，為了避免Rpi的GPIO pin腳不夠，我們甚至採取了將
 數位信號類比化的技巧，並且以單一一個pin腳的PWM信號來傳送。
-## Implementation and Deployment
+## Implementation
 本專案由遠端的遙控中心加上遙控探測車組成。車上裝置又可以分為4個部分：車體、超音波攻擊方位辨識裝置、影像辨識系統、反擊裝置。在裝置行進間，
 會隨時以超音波接收裝置偵測有沒有受到攻擊源的攻擊(以超音波發射來模擬)，若收到攻擊，車體會停止前進，進入偵測辨識模式。在此模式中，車子會先
 以超音波接收器大概得知攻擊方位，接者使用影像辨識來精確判斷，並同時用步進馬達控制砲台及相機對準攻擊源。下圖為我們使用的攻擊源圖示，以及影
@@ -60,24 +60,49 @@ camera作為鏡頭，特定圖像來代表攻擊源，並自行開發出辨識�
 local/arduino/remote_control/remote_control.ino
 ```
 電腦會接收鍵盤的上下左右指令，並且傳送到RPi端，回傳RPi的state(control/attacked & detection/recognition/attacking其中之一)給電腦控制
-者。
+者，RPi方面相對應的則為以下程式。
+```
+remote/A_CAR/remote_control.py
+```
 ### Video stream
 透過網路使用TCP protocol在local end(client)與RPi(server)之間傳遞。在每一輪的開始，由client端首先發出"ready"訊號，接著接收RPi camera攝
 得的影像檔案。由於單一一個影像的檔案也過於巨大，超過python TCP socket可靠傳送的上限，因此我們會將一個frame分為數個檔案傳送，至本機端才重新
 組合成完整的影像。以上流程不斷重複，就可以得到完整的及時的影片。  
 為了怕影片傳送速度過慢，拖慢了其他任務(如基本的遙控指令)的效率，因此我們在此使用multi thread的技巧來實作。
+這部份的程式，主要寫在以下兩個檔案中。
+```
+local/GUI/video_serial_client.py
+remote/A_CAR/video_serial_server.py
+```
 ### GUI
-我們實作了一個簡單的GUI，會顯示使用者操縱介面以及遙控車回傳的即時影片，並且在受到攻擊時會顯示於螢幕上，藉以警告操縱者(當然，由遠端RPi自動進
-行反擊)。下圖為GUI顯示的範例畫面。
+我們實作了一個簡單的GUI於以下檔案中，會顯示使用者操縱介面以及遙控車回傳的即時影片，並且在受到攻擊時會顯示於螢幕上，藉以警告操縱者(當然，由遠
+端RPi自動進行反擊)。
+```
+local/GUI/command_center.py
+```
+下圖為GUI顯示的範例畫面。
+![GUI](https://user-images.githubusercontent.com/31982568/51429810-9dfa5900-1c4d-11e9-836f-2d82ab4ce39c.png)
+### Power chain
+車體使用六輪越野車，Rpi以藍芽接收到控制訊號後，受限於pin腳數量以及旋轉扭線的問題，只得選擇使用GPIO傳送PWM訊號給arduino做為控制訊號。我們將前
+後左右四個boolean value經過簡單的encoding轉為單一一個類比訊號，並將PWM切為16等分，傳到arduino端後再解開還原成原本的訊號，解此達成許多複雜的
+動作，包括前進、後退、左、右、左前、右前、左後、右後、原地旋轉、全速前進、慢速前進等等。
+```
+remote/arduino/wheel_controller/wheel_controller.ino
+remote/A_CAR/PWM_io.py
+```
+### attacking detection
+以超音波發送接收模組hcsr-04做為模擬攻擊/接收源，每個超音波元件接收的角度大約為60度的扇形區域，經過測試之後，我們將整個圓切為八等分，每個等分上
+有兩個仰角不同(0度以及45度)的超音波發射接收器，再加上天頂的最後一個，車身上一共有17個超音波接收器。由於接收器數量過多，因此總共需要兩個arduino
+才能提供足夠的腳位，兩者分別接收超音波接收器的訊號，並經由serial port傳送一個17bit的訊號給rpi，程式實現如下：
+```
+remote/arduino/sensor_1/sensor_1.ino
+remote/arduino/sensor_2/sensor_2.ino
+```
+### target recognition
 
-車體：六輪越野車，馬達選用JGA25-370，driver選用L298N，rpi接收電腦傳出的藍芽訊號，以GPIO傳送PWM訊號給arduino做為控制訊號，將PWM切為16等分，每個等分代表一個動作(前進、後退、左、右、左前、右前、左後、右後、原地旋轉、全速前進、慢速前進等)。
- 
-攻擊方位辨識裝置：
-以超音波發送接收系統hcsr 04做為模擬攻擊接收源，一個超音波接收角度大約左右30度總共60度，所以一個平面需要3個不同角度的接收器來接收不同角度的攻擊，在經過測試之後，我們將整個圓切為八等分，每個等分上有兩個個接收不同角度的超音波發射接收器，就可以準確的辨識出攻擊方向，所以總計使用了17個超音波接收發送器，一個放在車頂來偵測上方來的攻擊。超音波接收器接收到訊號之後會經由Arduino Serial port傳送一個8bit的訊號給rpi，rpi再控制反擊裝置轉向接收到的方位，右圖為超音波發送接收器示意圖，如果2號的接收器收到訊號，arduino會傳送01000000的訊號給rpi。
-影像辨識系統：
 (你的)
 反擊裝置：與影像辨識系統的pi camera裝在一起，影像辨識系統確認攻擊源後由rpi啟動雷射模組進行攻擊
-
+## Deployment
 ## Achievements
 ## Reference
 ## Authors
