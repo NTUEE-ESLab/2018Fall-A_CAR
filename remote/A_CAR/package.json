@@ -1,0 +1,20 @@
+{
+  "name": "iot",
+  "version": "1.0.0",
+  "description": "test",
+  "main": "index.js",
+  "dependencies": {
+    "bleno": "^0.5.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "iot",
+    "nodejs",
+    "rpi3"
+  ],
+  "author": "ming",
+  "license": "ISC"
+}
